@@ -1,0 +1,80 @@
+# Reusable CI/CD for the bots: lint, format, build, unit tests, then deploy to
+# the Pi over Tailscale. A bot's whole workflow:
+#
+#   name: Deploy
+#   on: { push: { branches: [master] }, pull_request: {}, workflow_dispatch: {} }
+#   jobs:
+#     bot:
+#       uses: Randan/tg-bot-kit/.github/workflows/bot.yml@v1
+#       with:
+#         project: light-tg-bot
+#       secrets: inherit
+#
+# Secrets the bot repo must have: TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET, HOST,
+# USERNAME, PASSWORD, PORT.
+name: Bot CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: The folder in /home/randan/projects on the Pi
+        required: true
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: '24'
+      deploy-branch:
+        required: false
+        type: string
+        default: master
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier
+        run: npm run format:check
+      - name: Build
+        run: npm run build
+      - name: Unit tests
+        run: npm run test:cov
+
+  deploy:
+    # nothing reaches the Pi unless the checks pass
+    needs: check
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.deploy-branch)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ secrets.HOST }}
+
+      - name: Deploy to RP5
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /home/randan/projects/${{ inputs.project }}
+            git pull origin ${{ inputs.deploy-branch }}
+            GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
+            docker image prune -f
