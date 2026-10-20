@@ -76,6 +76,8 @@ jobs:
 
 ## Releasing
 
-Bump `version` in `package.json`, push a tag `vX.Y.Z`: CI runs the checks and publishes
-to npm (needs the `NPM_TOKEN` secret). Move the floating `v1` tag along for the bots'
-workflow.
+Bump `version` in `package.json`, push a tag `vX.Y.Z`: CI runs the checks and publishes to npm
+through npm Trusted Publishing (no token; set up once in the package settings on npmjs.com:
+Trusted Publisher → GitHub Actions, repository `Randan/tg-bot-kit`, workflow `ci.yml`). A version
+already on npm is skipped. Then move the floating `v1` tag, which the bots' workflow uses:
+`git tag -f v1 && git push -f origin v1`.
