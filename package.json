@@ -1,6 +1,6 @@
 {
   "name": "@randan/tg-bot-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Shared runtime plumbing for NestJS Telegram bots: env config, /health, /diag, command menu, admin alerts, timeouts, retries, pollers and a watchdog",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
